@@ -1,0 +1,14 @@
+# secrets / local config
+.env
+
+# transcripts & recordings (don't commit meeting content)
+*.txt
+*.wav
+*.m4a
+*.mp3
+*.mp4
+recordings/
+transcripts/
+
+# os cruft
+.DS_Store
