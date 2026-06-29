@@ -18,18 +18,36 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OLLAMA_MODEL="${OLLAMA_MODEL:-llama3.1:8b}"
 
 # --- args ------------------------------------------------------------------
-INPUT="${1:-}"
+usage() {
+  cat <<EOF
+summarize.sh — transcript → summary + action items, via a local LLM (Ollama).
+
+usage: $(basename "$0") <transcript.txt> [options]
+
+options:
+  -o, --output <file>  where to write the summary (default: <input>.summary.md)
+  -h, --help           show this help
+
+Set OLLAMA_MODEL in .env to change the model (default: llama3.1:8b).
+
+example:
+  $(basename "$0") recording.txt -o transcripts/standup.summary.md
+EOF
+}
+
+INPUT=""
 OUT=""
-shift || true
 while [ $# -gt 0 ]; do
   case "$1" in
+    -h|--help)   usage; exit 0 ;;
     -o|--output) OUT="$2"; shift 2 ;;
-    *) echo "unknown arg: $1" >&2; exit 2 ;;
+    -*) echo "unknown option: $1" >&2; usage >&2; exit 2 ;;
+    *)  INPUT="$1"; shift ;;
   esac
 done
 
 if [ -z "$INPUT" ]; then
-  echo "usage: $0 <transcript.txt> [-o output.md]" >&2
+  usage >&2
   exit 2
 fi
 [ -f "$INPUT" ] || { echo "error: file not found: $INPUT" >&2; exit 1; }
