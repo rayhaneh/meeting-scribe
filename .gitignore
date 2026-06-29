@@ -7,8 +7,11 @@
 *.m4a
 *.mp3
 *.mp4
-recordings/
 transcripts/
+
+# keep the recordings/ folder, ignore everything inside it
+recordings/*
+!recordings/.gitkeep
 
 # os cruft
 .DS_Store
