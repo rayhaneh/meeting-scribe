@@ -19,18 +19,34 @@ WHISPER_BIN="${WHISPER_BIN:-whisper-cli}"
 MODEL="${WHISPER_MODEL:-$HOME/.local/share/whisper/ggml-base.en.bin}"
 
 # --- args ------------------------------------------------------------------
-INPUT="${1:-}"
+usage() {
+  cat <<EOF
+transcribe.sh — turn a meeting recording into a plain-text transcript (whisper.cpp).
+
+usage: $(basename "$0") <audio-file> [options]
+
+options:
+  -o, --output <file>  where to write the transcript (default: <input>.txt)
+  -h, --help           show this help
+
+example:
+  $(basename "$0") recording.m4a -o transcripts/standup.txt
+EOF
+}
+
+INPUT=""
 OUT=""
-shift || true
 while [ $# -gt 0 ]; do
   case "$1" in
+    -h|--help)   usage; exit 0 ;;
     -o|--output) OUT="$2"; shift 2 ;;
-    *) echo "unknown arg: $1" >&2; exit 2 ;;
+    -*) echo "unknown option: $1" >&2; usage >&2; exit 2 ;;
+    *)  INPUT="$1"; shift ;;
   esac
 done
 
 if [ -z "$INPUT" ]; then
-  echo "usage: $0 <audio-file> [-o output.txt]" >&2
+  usage >&2
   exit 2
 fi
 if [ ! -f "$INPUT" ]; then
