@@ -74,32 +74,76 @@ fi
 
 # --- prompt ----------------------------------------------------------------
 read -r -d '' PROMPT <<'EOF' || true
-You are a meeting-notes assistant. Below is a raw, possibly messy transcript of
-a meeting (speaker labels may be missing). Write clean, concise notes in
-Markdown with exactly these sections:
+You are an expert meeting-notes analyst. Below is a raw, possibly messy
+transcript of a meeting (speaker labels may be missing, words may be
+mis-transcribed). Produce thorough, well-structured notes in Markdown.
+
+Requirements:
+- Be detailed and faithful. Capture EVERY distinct topic discussed, not just a
+  few highlights. A reader who missed the meeting should understand what was
+  said and what was decided.
+- Organize the body as a numbered list of topics. Give each topic a short bold
+  title. Under it, use sub-bullets for the key facts, questions raised, and
+  context. When the group reached a conclusion, put it on its own line starting
+  with "**Decision:**".
+- Preserve concrete specifics: names, numbers, dates, deadlines, systems,
+  tools, and account/error counts. Do not round away or drop details.
+- Frame topics around the actual questions or issues discussed when natural
+  (e.g. "How are rejected accounts communicated?").
+
+Structure:
 
 ## Summary
-A short paragraph (3-5 sentences) capturing what the meeting was about and the
-key outcomes.
+2-4 sentences on what the meeting was about and the main outcomes.
 
-## Key Points
-- Bulleted list of the most important discussion points and decisions.
+## Discussion
+1. **Topic title**
+   - detail
+   - **Decision:** ... (only when a decision was actually made)
+2. **Next topic**
+   - ...
+(continue for every topic covered)
 
 ## Action Items
-- [ ] Each task on its own line, with the owner in **bold** if it's clear from
-  the transcript (e.g. "**Alex**: send the report"). If no owner is clear, just
-  state the task. If there are no action items, write "None".
+Group by owner. For each person who has tasks, add a "### Name" heading, then
+list their tasks as checkboxes:
+### Alex
+- [ ] task description
+- [ ] another task
+(If an action item has no clear owner, put it under "### Unassigned".)
 
-Do not invent information that isn't in the transcript. Keep it tight.
+Rules:
+- Use ONLY information present in the transcript. Never invent facts, names, or
+  numbers. If something is unclear, omit it rather than guessing.
+- Output Markdown only — no preamble, no "Here are the notes", just the notes.
 
 --- TRANSCRIPT ---
 EOF
 
 echo "→ summarizing with $OLLAMA_MODEL (local)…" >&2
 
-TRANSCRIPT_TEXT="$(cat "$INPUT")"
-printf '%s\n%s\n' "$PROMPT" "$TRANSCRIPT_TEXT" \
-  | ollama run "$OLLAMA_MODEL" > "$OUT"
+command -v jq >/dev/null 2>&1 || { echo "error: jq required (brew install jq)" >&2; exit 1; }
+
+# Use Ollama's HTTP API (not `ollama run`) so the output is clean text rather
+# than a TTY stream littered with cursor/erase escape codes.
+OLLAMA_HOST="${OLLAMA_HOST:-http://localhost:11434}"
+
+REQ=$(jq -n \
+  --arg model "$OLLAMA_MODEL" \
+  --arg prompt "$PROMPT" \
+  --rawfile transcript "$INPUT" \
+  '{model:$model, stream:false, prompt:($prompt + "\n" + $transcript)}')
+
+RESP=$(curl -s "$OLLAMA_HOST/api/generate" -d "$REQ")
+SUMMARY_TEXT=$(printf '%s' "$RESP" | jq -r '.response // empty')
+
+if [ -z "$SUMMARY_TEXT" ]; then
+  echo "✗ summarization failed:" >&2
+  printf '%s' "$RESP" | jq -r '.error // .' >&2 2>/dev/null || printf '%s\n' "$RESP" >&2
+  exit 1
+fi
+
+printf '%s\n' "$SUMMARY_TEXT" > "$OUT"
 
 echo "✓ summary: $OUT" >&2
 echo "$OUT"
